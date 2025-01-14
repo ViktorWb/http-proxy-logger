@@ -17,7 +17,7 @@ type DebugTransport struct{}
 func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	counter := atomic.AddInt32(&reqCounter, 1)
 
-	requestDump, err := httputil.DumpRequestOut(r, true)
+	requestDump, err := httputil.DumpRequestOut(r, false)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	responseDump, err := httputil.DumpResponse(response, true)
+	responseDump, err := httputil.DumpResponse(response, false)
 	if err != nil {
 		// copying the response body did not work
 		return nil, err
@@ -66,9 +66,22 @@ func main() {
 
 	d := proxy.Director
 	proxy.Director = func(r *http.Request) {
-		d(r) // call default director
+	        d(r) // call default director
 
-		r.Host = target.Host // set Host header as expected by target
+		if r.Header.Get("X-Forwarded-Proto") == "" {
+		        r.Header.Set("X-Forwarded-Proto", "http")
+		}
+		if r.Header.Get("X-Original-Proto") == "" {
+		        r.Header.Set("X-Original-Proto", "http")
+		}
+		if r.Header.Get("X-Forwarded-Host") == "" {
+		        r.Header.Set("X-Forwarded-Host", r.Host)
+		}
+		if r.Header.Get("X-Original-Host") == "" {
+		        r.Header.Set("X-Original-Host", r.Host)
+		}
+
+                r.Host = target.Host // set Host header as expected by target
 	}
 
 	if err := http.ListenAndServe(getListenAddress(), proxy); err != nil {
